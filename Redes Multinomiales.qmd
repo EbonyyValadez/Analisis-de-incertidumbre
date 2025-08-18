@@ -23,16 +23,18 @@ head(data)
 ```
 
 ```{r}
-dag = empty.graph(nodes = c("A", "S", "E", "O", "R", "T"))
+nodes = c("A", "S", "E", "O", "R", "T")
+dag <- empty.graph(nodes)
 ```
 
 ```{r}
-arc_set = matrix(c(A, E,
-                   S, E,
-                   E, O,
-                   E, R,
-                   O, T,
-                   R, T), byrow = TRUE, ncol = 2,
+arc_set = matrix(c("A", "E",
+                   "S", "E",
+                   "E", "O",
+                   "E", "R",
+                   "O", "T",
+                   "R", "T"),
+                 byrow = TRUE, ncol = 2,
                  dimnames = list(NULL, c("from", "to")))
 
 ```
@@ -47,4 +49,77 @@ dag
 
 ```{r}
 bn_mle = bn.fit(dag, data = data, method = "mle")
+```
+
+Ejemplo de uso:
+
+```{r}
+bn_mle$O
+```
+
+## **Prueba** G\^2
+
+```{r}
+ci.test("T", "E", c("O", "R"), test = "mi", data = data)
+```
+
+## χ2 de Pearson
+
+```{r}
+ci.test("T", "E", c("O", "R"), test = "x2", data = data)
+```
+
+Prueba de independencia (condicional):
+
+```{r}
+arc.strength(dag, data = data, criterion = "mi")
+```
+
+Lo anterior nos sirve para evaluar nodo por nodo.
+
+## **Network scores**
+
+### **Bayesian Information Criterion (BIC)**
+
+$$
+\text{BIC} = \log \left[ \hat{\mathbb{P}}(\text{Nodos}) \right] - \frac{d}{2} \log(n)
+$$ El BIC combina qué tan probable es el modelo dado los datos (primer término) con una penalización por complejidad (segundo término).
+
+```{r}
+score(dag, data = data, type = "bic")
+```
+
+### Akaike Information Criterion (AIC)
+
+$$
+\text{AIC} = \log\left[\widehat{\mathbb{P}}(\text{Nodos})\right] - d
+$$ El AIC es, al igual que el BIC, un criterio para comparar modelos estadísticos, pero usa una penalización distinta.
+
+```{r}
+score(dag, data = data, type = "aic")
+```
+
+### Hill Cimbling
+
+Es un algoritmo de búsqueda local que sirve para encontrar una buena solución a un problema optimizando una función.
+
+```{r}
+best_dag = hc(data)
+```
+
+```{r}
+modelstring(best_dag)
+```
+
+**Puede que no tenga sentido en la vida real**
+
+```{r}
+graphviz.plot(best_dag, shape = "ellipse")
+```
+
+Probamos la nueva dag con nuestros otros modelos de comparación. (Aunque ya sabemos que no tiene sentido)
+
+```{r}
+score(best_dag, data = data, type = "bic")
+score(best_dag, data = data, type = "aic")
 ```
