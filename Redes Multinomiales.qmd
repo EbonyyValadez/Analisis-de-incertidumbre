@@ -1,0 +1,50 @@
+---
+title: "Redes multinomiales"
+author: "Ebony Valadez A01645722"
+format: 
+   html:
+     toc: true
+     html-math-method: katex
+     embed-resources: true
+     self-contained-math: true
+     df-print: kable
+editor: visual
+---
+
+## Ejemplo: Transporte
+
+```{r}
+install.packages("bnlearn")
+```
+
+```{r}
+data = read.csv("/Users/ebonyvaladez/Analisis-de-incertidumbre/survey.csv", stringsAsFactors = TRUE)
+head(data)
+```
+
+```{r}
+dag = empty.graph(nodes = c("A", "S", "E", "O", "R", "T"))
+```
+
+```{r}
+arc_set = matrix(c(A, E,
+                   S, E,
+                   E, O,
+                   E, R,
+                   O, T,
+                   R, T), byrow = TRUE, ncol = 2,
+                 dimnames = list(NULL, c("from", "to")))
+
+```
+
+```{r}
+arcs(dag) = arc_set
+```
+
+```{r}
+dag
+```
+
+```{r}
+bn_mle = bn.fit(dag, data = data, method = "mle")
+```
