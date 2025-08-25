@@ -1,0 +1,186 @@
+---
+title: "GBN"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(bnlearn)
+```
+
+```{r}
+data = read_csv("~/Desktop/quinto semestre/primer periodo/incertidumbre/Analisis-de-incertidumbre/data/crop.csv")
+head(data)
+```
+
+```{r}
+# Quiero una pipeline con todo menos crop 
+data = data |>
+        select(-crop)
+```
+
+```{r}
+colnames(data) = c("N", "P", "K", "T", "H", "pH", "R", "Y")
+
+```
+
+```{r}
+dag = model2network("[T][R][H|T:R][pH|T:R][N|H][K|H][P|pH][Y|N:K:P]")
+```
+
+```{r}
+graphviz.plot(dag, shape = "ellipse")
+```
+
+```{r}
+# Distribuciones de probabilidad condicionales de cada nodo
+crop_fit = bn.fit(dag, data = data)
+```
+
+```{r}
+# Dame la parte del modelo que corresponde al nodo N
+crop_fit$N 
+```
+
+Nota - Ajustar un modelo de regresión lineal para cada nodo es lo mismo que si hacemos el método de máxima verosimilitud para estimar los parámetros de cada nodo.
+
+--------------------------------------------------------
+La formula es una especificacion del modelo como string \**variable dependiente* \~ *variables independientes*\*
+
+```{r}
+# Estima un modelo de regresión lineal 
+mod_lm = lm(N~H, data = data)
+coef(mod_lm)
+```
+
+```{r}
+ggplot(data, aes(x = H, y = N)) +
+  geom_point(color = "steelblue", alpha = 0.3) +
+  geom_smooth(method = lm, se = FALSE, lwd = 2, color = "dodgerblue") +
+  labs(x = "Humedad", y = "Nivel de nitrógeno", title = "") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", margin = margin(0, 0, 5, 0)),
+        axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold", angle = 90))
+```
+
+La gráfica no se ve muy linear por lo que vemos que la relación entre H y N no es muy linear por lo que intentamos seguir un modelo no paramétrico.
+
+```{r}
+# Cargamos los paquetes
+library(nlme)
+library(mgcv)
+library(ggplot2)
+library(gratia)
+```
+--------------------------------------------------------
+## Módelo no paramétrico
+
+```{r}
+# Modelar relaciones no lineales
+mod_gam_N = gam(N ~ s(H), data = data, method = "REML")
+```
+
+Las relaciones entre variables no sean estrictamente lineales, sino curvas suaves aprendidas de los datos
+
+```{r}
+draw(mod_gam_N, residuals = TRUE, rug = FALSE) +
+  labs(x = "Humedad", y = "s(Humedad)", title = "Efecto parcial de la humedad sobre el nitrógeno") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold",
+                                  margin = margin(0, 0, 5, 0)),
+        axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold", angle = 90),
+        legend.title = element_text(hjust = 0.5, face = "bold"),
+        legend.text = element_text(hjust = 0.5),
+        strip.text = element_text(hjust = 0.5, face = "bold",
+                                  margin = margin(2, 3, 3, 3)),
+        plot.subtitle = element_text(hjust = 0.5, face = "bold",
+                                     size = 10,
+                                     margin = margin(0, 0, 5, 0)))
+```
+
+```{r}
+mod_Y_NKP = lm(Y ~ N + K + P, data = data)
+```
+
+```{r}
+summary(mod_Y_NKP)
+```
+
+Nos fijamos en el p-value, no se rechaza H0 porque el p-value es más granda a alpha = 0.05. Por lo que podemos concluir que al menos de forma linear K no se relaciona con Y.
+----------------------------------------------------------
+## Score
+
+```{r}
+score(dag, data = data, type = "bic-g")
+```
+
+El BIC para una red gaussiana lineal es -92712.77.
+
+Nota: el criterio de información bayesiano (BIC) que se calcula para evaluar qué tan bien se ajusta un modelo (en este caso, una Linear Gaussian Bayesian Network).
+
+--------------------------------------------------------
+Para cada una de las distribuciones locales ajustamos un modelo no paramétrico.
+
+```{r}
+mod_gam_H = gam(H ~ s(T) + s(R), data = data, method = "REML")
+mod_gam_pH = gam(pH ~ s(T) + s(R), data = data, method = "REML")
+mod_gam_N = gam(N ~ s(H), data = data, method = "REML")
+mod_gam_K = gam(K ~ s(H), data = data, method = "REML")
+mod_gam_P = gam(P ~ s(pH), data = data, method = "REML")
+mod_gam_Y = gam(Y ~ s(N) + s(K) + s(P), data = data, method = "REML")
+```
+--------------------------------------------------------
+Las distribuciones locales de la temperatura y precipitación son modelos gaussianos univariados.
+
+```{r}
+mod_T = lm(T ~ 1, data = data)
+mod_R = lm(R ~ 1, data = data)
+```
+--------------------------------------------------------
+Debemos de calcular el BIC manualmente por ser un modelo no paramétrico
+```{r}
+-1/2*(BIC(mod_T) + BIC(mod_R) + BIC(mod_gam_H) + BIC(mod_gam_K) +
+           BIC(mod_gam_N) + BIC(mod_gam_P) + BIC(mod_gam_pH) + BIC(mod_gam_Y))
+```
+
+Como el resultado del modelo no paramétrico es mayor al del paramétrico escogemos ese modelo.
+--------------------------------------------------------
+
+### Ejemplo (queries)
+
+```{r}
+# Método de likelihood weighting
+cpquery(crop_fit, event = (Y > 70), evidence = list(T = 30, R = 100), method = "lw")
+```
+--------------------------------------------------------
+
+Cuando hay uniones solo se puede usar logic sampling 
+
+```{r}
+cpquery(crop_fit, event = (Y >= 10000), evidence = ((N < 72) | ((K <= 20) & (P <= 30))), n = 10^6)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

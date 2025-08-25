@@ -14,7 +14,8 @@ editor: visual
 ## Ejemplo: Transporte
 
 ```{r}
-install.packages("bnlearn")
+if (!requireNamespace("bnlearn", quietly = TRUE)) install.packages("bnlearn")
+library(bnlearn)
 ```
 
 ```{r}
@@ -86,7 +87,7 @@ $$
 $$ El BIC combina qué tan probable es el modelo dado los datos (primer término) con una penalización por complejidad (segundo término).
 
 ```{r}
-score(dag, data = data, type = "bic")
+bnlearn::score(dag, data = data, type = "bic")
 ```
 
 ### Akaike Information Criterion (AIC)
@@ -96,7 +97,7 @@ $$
 $$ El AIC es, al igual que el BIC, un criterio para comparar modelos estadísticos, pero usa una penalización distinta.
 
 ```{r}
-score(dag, data = data, type = "aic")
+bnlearn::score(dag, data = data, type = "aic")
 ```
 
 ### Hill Cimbling
@@ -123,3 +124,36 @@ Probamos la nueva dag con nuestros otros modelos de comparación. (Aunque ya sab
 score(best_dag, data = data, type = "bic")
 score(best_dag, data = data, type = "aic")
 ```
+
+## Logic Sampling
+
+```{r}
+bn = bn.fit(best_dag,data=data)
+```
+
+```{r}
+cpquery(bn, event = (T == "train" & S == "F"), evidence = (E == "uni"), n = 10^6)
+```
+
+## Likelihood weighting
+
+```{r}
+cpquery(bn, event = (T == "train" & S == "F"), evidence = list(E = "uni"), method = "lw")
+```
+```{r}
+cpquery(bn, event = (T == "train"), evidence = ((S == "M") & (((A == "young") & (E == "uni")) | (A == "adult"))), n = 10^6)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
